@@ -1,26 +1,47 @@
+// src/components/AssetCard.tsx
 'use client'
 
-import { Asset } from '@/lib/fetchRobloxData'
-import { Button } from '@/components/ui/button'
-import { Copy } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
+import { Button } from './ui/button'
+import { Clipboard } from 'lucide-react'
+import { toast } from 'sonner'
 
-export default function AssetCard({ asset }: { asset: Asset }) {
+export default function AssetCard({ item }: { item: any }) {
     const copyId = () => {
-        navigator.clipboard.writeText(String(asset.id))
+        navigator.clipboard.writeText(item.id)
+        toast.success('ID copiado!', {
+            description: `ID: ${item.id}`
+        })
     }
 
     return (
-        <div className="p-4 border rounded-xl flex flex-col items-center text-center space-y-2 bg-muted">
-            <img
-                src={asset.thumbnailUrl}
-                alt={asset.name}
-                className="w-20 h-20 rounded-full object-cover"
-            />
-            <div className="text-sm font-medium">{asset.name}</div>
-            <div className="text-xs text-gray-500">{asset.id}</div>
-            <Button variant="outline" size="sm" onClick={copyId}>
-                <Copy className="w-4 h-4 mr-1" /> Copiar ID
-            </Button>
-        </div>
+        <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="pb-2">
+                <CardTitle className="text-lg line-clamp-2">
+                    {item.name}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                    {item.type}
+                </p>
+            </CardHeader>
+            <CardContent>
+                <div className="aspect-square bg-muted rounded mb-3 overflow-hidden">
+                    <img
+                        src={`https://www.roblox.com/asset-thumbnail/image?assetId=${item.id}&width=420&height=420`}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                    />
+                </div>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={copyId}
+                >
+                    <Clipboard className="mr-2 h-4 w-4" />
+                    Copiar ID: {item.id}
+                </Button>
+            </CardContent>
+        </Card>
     )
 }

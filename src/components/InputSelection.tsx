@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState } from 'react'
 import { Clipboard, ClipboardCheck, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
@@ -8,45 +8,73 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
-type Asset = {
+interface RobloxAsset {
     id: string
     name: string
     type: string
     typeId: number
+    category: string
     imageUrl: string
+    creator?: string
+    price?: number
+    isLimited?: boolean
 }
 
-type AssetCategory = {
+interface AssetCategory {
     name: string
     typeId: number
-    items: Asset[]
+    items: RobloxAsset[]
     expanded: boolean
 }
 
-const CATEGORY_NAMES: Record<number, string> = {
-    1: 'Imagens',
-    2: 'T-Shirts',
-    3: 'Camisetas',
-    4: 'Calças',
-    5: 'Decalques',
-    8: 'Acessórios',
-    9: 'Roupas',
-    10: 'Modelos',
-    11: 'Plugins',
-    12: 'Meshes',
-    13: 'Pacotes',
-    16: 'Cabeças',
-    17: 'Faces',
-    18: 'Equipamentos',
-    19: 'Animações',
-    24: 'Áudios',
-    27: 'Adesivos',
-    28: 'Emotes',
-    29: 'Bundles',
-    30: 'Experiências'
+const ASSET_TYPE_MAPPING: Record<number, { name: string; category: string }> = {
+    // Acessórios
+    8: { name: 'Acessório', category: 'Accessory' },
+    41: { name: 'Cabelo', category: 'HairAccessory' },
+    42: { name: 'Chapéu', category: 'HatAccessory' },
+    43: { name: 'Rosto', category: 'FaceAccessory' },
+    44: { name: 'Pescoço', category: 'NeckAccessory' },
+    45: { name: 'Ombro', category: 'ShouldersAccessory' },
+    46: { name: 'Frente', category: 'FrontAccessory' },
+    47: { name: 'Costas', category: 'BackAccessory' },
+    48: { name: 'Cintura', category: 'WaistAccessory' },
+
+    // Animações
+    19: { name: 'Animação', category: 'Animation' },
+    32: { name: 'Animação de Idle', category: 'IdleAnimation' },
+    33: { name: 'Animação de Corrida', category: 'RunAnimation' },
+    34: { name: 'Animação de Caminhada', category: 'WalkAnimation' },
+    35: { name: 'Animação de Natação', category: 'SwimAnimation' },
+    36: { name: 'Animação de Pulo', category: 'JumpAnimation' },
+    37: { name: 'Animação de Queda', category: 'FallAnimation' },
+    38: { name: 'Animação de Escalada', category: 'ClimbAnimation' },
+    39: { name: 'Animação de Humor', category: 'MoodAnimation' },
+
+    // Partes do Corpo
+    16: { name: 'Cabeça', category: 'Head' },
+    17: { name: 'Rosto', category: 'Face' },
+    18: { name: 'Torso', category: 'Torso' },
+    27: { name: 'Braço Esquerdo', category: 'LeftArm' },
+    28: { name: 'Braço Direito', category: 'RightArm' },
+    29: { name: 'Perna Esquerda', category: 'LeftLeg' },
+    30: { name: 'Perna Direita', category: 'RightLeg' },
+
+    // Roupas
+    2: { name: 'T-Shirt', category: 'GraphicTShirt' },
+    3: { name: 'Camisa', category: 'Shirt' },
+    4: { name: 'Calça', category: 'Pants' },
+
+    // Outros
+    1: { name: 'Imagem', category: 'Image' },
+    5: { name: 'Decalque', category: 'Decal' },
+    10: { name: 'Modelo', category: 'Model' },
+    11: { name: 'Plugin', category: 'Plugin' },
+    12: { name: 'Mesh', category: 'Mesh' },
+    13: { name: 'Pacote', category: 'Package' },
+    24: { name: 'Áudio', category: 'Audio' }
 }
 
-export default function InputSection() {
+export default function InputSelection() {
     const [input, setInput] = useState('')
     const [isLoading, setIsLoading] = useState(false)
     const [categories, setCategories] = useState<AssetCategory[]>([])
@@ -58,32 +86,44 @@ export default function InputSection() {
         setCategories(newCategories)
     }
 
-    const fetchAssetDetails = async (ids: string[]): Promise<Asset[]> => {
+    const fetchAssetDetails = async (id: string): Promise<RobloxAsset> => {
         try {
-            const query = new URLSearchParams({ ids: ids.join(',') }).toString()
-            const response = await fetch(`/api/roblox/catalog?${query}`)
+            const response = await fetch(`/api/roblox/catalog?assetId=${id}`)
 
+            if (!response.ok) {
+                throw new Error(`Failed to fetch asset ${id}`)
+            }
 
-            if (!response.ok) throw new Error('Failed to fetch assets')
+            const data = await response.json()
+            const typeInfo = ASSET_TYPE_MAPPING[data.assetType?.id || data.assetTypeId] || {
+                name: 'Desconhecido',
+                category: 'Other'
+            }
 
-            const { data } = await response.json()
-
-            return data.map((asset: any) => ({
-                ...asset,
-                typeId: asset.assetTypeId ?? 0, // número
-                type: CATEGORY_NAMES[asset.assetTypeId] || asset.type || 'Desconhecido'
-            }))
-
-        } catch (error) {
-            console.error('Error fetching assets:', error)
-            toast.error('Erro ao buscar assets')
-            return ids.map(id => ({
+            return {
                 id,
-                name: `Asset ${id}`,
-                type: 'Desconhecido',
+                name: data.name || `Item ${id}`,
+                type: typeInfo.name,
+                typeId: data.assetType?.id || data.assetTypeId,
+                category: typeInfo.category,
+                imageUrl: `https://www.roblox.com/asset-thumbnail/image?assetId=${id}&width=420&height=420&format=png`,
+                creator: data.creator?.name || data.creatorName,
+                price: data.price || 0,
+                isLimited: data.isLimited || false
+            }
+        } catch (error) {
+            console.error(`Error fetching asset ${id}:`, error)
+            return {
+                id,
+                name: `Item ${id}`,
+                type: 'Erro ao carregar',
                 typeId: 0,
-                imageUrl: ''
-            }))
+                category: 'Error',
+                imageUrl: '',
+                creator: '',
+                price: 0,
+                isLimited: false
+            }
         }
     }
 
@@ -97,6 +137,7 @@ export default function InputSection() {
         setCategories([])
         toast.info('Iniciando análise dos assets...')
 
+        // Processa os IDs de entrada
         const ids = [...new Set(
             input.split(/[\s,]+/).map(id => id.trim()).filter(id => /^\d+$/.test(id))
         )]
@@ -115,31 +156,20 @@ export default function InputSection() {
             })
         }
 
-        const batchSize = 20
-        const batches = []
+        // Processa em lotes para melhor performance
+        const batchSize = 10
+        const allAssets: RobloxAsset[] = []
+
         for (let i = 0; i < ids.length; i += batchSize) {
-            batches.push(ids.slice(i, i + batchSize))
+            const batch = ids.slice(i, i + batchSize)
+            toast.info(`Processando itens ${i + 1}-${Math.min(i + batchSize, ids.length)} de ${ids.length}`)
+
+            const batchResults = await Promise.all(batch.map(id => fetchAssetDetails(id)))
+            allAssets.push(...batchResults.filter(asset => asset.typeId !== 0)) // Filtra erros
         }
-
-        const allAssets: Asset[] = []
-
-        for (const [index, batch] of batches.entries()) {
-            toast.info(`Processando lote ${index + 1}/${batches.length}`)
-            const batchAssets = await fetchAssetDetails(batch)
-            allAssets.push(...batchAssets)
-        }
-
-        // Remove duplicados por ID
-        const seen = new Set()
-        const uniqueAssets = allAssets.filter(asset => {
-            if (seen.has(asset.id)) return false
-            seen.add(asset.id)
-            return true
-        })
-
 
         // Agrupa por tipo
-        const grouped = uniqueAssets.reduce((acc, asset) => {
+        const grouped = allAssets.reduce((acc, asset) => {
             const existingCategory = acc.find(cat => cat.typeId === asset.typeId)
 
             if (existingCategory) {
@@ -158,9 +188,7 @@ export default function InputSection() {
 
         // Ordena categorias
         grouped.sort((a, b) => {
-            if (b.items.length !== a.items.length) {
-                return b.items.length - a.items.length
-            }
+            if (b.items.length !== a.items.length) return b.items.length - a.items.length
             return a.typeId - b.typeId
         })
 
@@ -168,9 +196,8 @@ export default function InputSection() {
         setIsLoading(false)
 
         toast.success('Análise concluída!', {
-            description: `${uniqueAssets.length} assets organizados em ${grouped.length} categorias`
+            description: `${allAssets.length} assets organizados em ${grouped.length} categorias`
         })
-
     }
 
     const copyAllIds = () => {
@@ -178,7 +205,7 @@ export default function InputSection() {
         navigator.clipboard.writeText(allIds)
         setCopiedAll(true)
         toast.success('Todos os IDs copiados!', {
-            description: `${categories.reduce((sum, cat) => sum + cat.items.length, 0)} IDs copiados para a área de transferência`
+            description: `${categories.reduce((sum, cat) => sum + cat.items.length, 0)} IDs copiados`
         })
         setTimeout(() => setCopiedAll(false), 2000)
     }
@@ -186,7 +213,7 @@ export default function InputSection() {
     const copySingleId = (id: string) => {
         navigator.clipboard.writeText(id)
         toast.success('ID copiado!', {
-            description: `O ID ${id} foi copiado para a área de transferência`
+            description: `ID ${id} copiado para a área de transferência`
         })
     }
 
@@ -194,7 +221,7 @@ export default function InputSection() {
         const ids = category.items.map(item => item.id).join(', ')
         navigator.clipboard.writeText(ids)
         toast.success('IDs da categoria copiados!', {
-            description: `${category.items.length} IDs da categoria ${category.name} copiados`
+            description: `${category.items.length} IDs copiados`
         })
     }
 
@@ -206,12 +233,7 @@ export default function InputSection() {
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Cole os IDs aqui (separados por vírgulas ou espaços)"
                     className="flex-1 min-h-[100px]"
-                    onPaste={() => {
-                        toast.info('IDs colados!', {
-                            description: 'Clique em "Analisar Assets" para processar'
-                        })
-                    }}
-
+                    onPaste={() => toast.info('IDs colados! Clique em "Analisar Assets" para processar')}
                 />
                 <Button
                     onClick={parseAssets}
@@ -303,8 +325,8 @@ export default function InputSection() {
 
                             {category.expanded && (
                                 <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                    {category.items.map((asset, assetIndex) => (
-                                        <div key={assetIndex} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                                    {category.items.map((asset) => (
+                                        <div key={asset.id} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow">
                                             <div className="relative aspect-square bg-muted">
                                                 {asset.imageUrl ? (
                                                     <img
@@ -313,11 +335,9 @@ export default function InputSection() {
                                                         className="w-full h-full object-cover"
                                                         loading="lazy"
                                                         onError={(e) => {
-                                                            (e.target as HTMLImageElement).src = ''
-                                                            const parent = (e.target as HTMLImageElement).parentElement
-                                                            if (parent) {
-                                                                parent.className = 'relative aspect-square bg-muted flex items-center justify-center'
-                                                            }
+                                                            const target = e.target as HTMLImageElement
+                                                            target.src = ''
+                                                            target.parentElement!.className = 'relative aspect-square bg-muted flex items-center justify-center'
                                                         }}
                                                     />
                                                 ) : (
