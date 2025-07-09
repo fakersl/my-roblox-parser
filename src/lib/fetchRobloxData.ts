@@ -11,38 +11,41 @@ export type CategorizedAssets = {
 }
 
 const assetTypeMap: Record<number, string> = {
-    // Accessories
-    41: "HatAccessory",
-    42: "HairAccessory",
-    43: "FaceAccessory",
-    44: "NeckAccessory",
-    45: "ShoulderAccessory",
-    46: "FrontAccessory",
-    47: "BackAccessory",
-    48: "WaistAccessory",
+    // ✅ Accessories
+    8: "HatAccessory",
+    41: "HairAccessory",
+    42: "FaceAccessory",
+    43: "NeckAccessory",
+    44: "ShoulderAccessory",
+    45: "FrontAccessory",
+    46: "BackAccessory",
+    47: "WaistAccessory",
 
-    // Clothing
+    // ✅ Clothing
     11: "Shirt",
     12: "Pants",
-    13: "GraphicTShirt",
+    2: "GraphicTShirt", // Classic T-Shirt
 
-    // Body parts
+    // ✅ Body parts
+    17: "Head",
     18: "Face",
-    19: "Head",
-    17: "Torso",
-    15: "LeftArm",
-    16: "RightArm",
-    24: "LeftLeg",
-    25: "RightLeg",
+    27: "Torso",
+    28: "RightArm",
+    29: "LeftArm",
+    30: "LeftLeg",
+    31: "RightLeg",
 
-    // Animations
-    32: "IdleAnimation",
-    33: "WalkAnimation",
-    34: "RunAnimation",
-    35: "SwimAnimation",
-    36: "ClimbAnimation",
-    37: "FallAnimation",
-    39: "JumpAnimation",
+    // ✅ Animations
+    48: "ClimbAnimation",
+    49: "DeathAnimation",
+    50: "FallAnimation",
+    51: "IdleAnimation",
+    52: "JumpAnimation",
+    53: "RunAnimation",
+    54: "SwimAnimation",
+    55: "WalkAnimation",
+    56: "PoseAnimation",
+    61: "EmoteAnimation",
 }
 
 export async function fetchRobloxAssets(ids: number[]): Promise<CategorizedAssets> {

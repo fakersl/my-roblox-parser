@@ -60,11 +60,9 @@ export default function InputSection() {
 
     const fetchAssetDetails = async (ids: string[]): Promise<Asset[]> => {
         try {
-            const response = await fetch('/api/roblox', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids })
-            })
+            const query = new URLSearchParams({ ids: ids.join(',') }).toString()
+            const response = await fetch(`/api/roblox/catalog?${query}`)
+
 
             if (!response.ok) throw new Error('Failed to fetch assets')
 
@@ -72,9 +70,10 @@ export default function InputSection() {
 
             return data.map((asset: any) => ({
                 ...asset,
-                type: CATEGORY_NAMES[asset.type] || 'Desconhecido',
-                typeId: asset.type
+                typeId: asset.assetTypeId ?? 0, // número
+                type: CATEGORY_NAMES[asset.assetTypeId] || asset.type || 'Desconhecido'
             }))
+
         } catch (error) {
             console.error('Error fetching assets:', error)
             toast.error('Erro ao buscar assets')
@@ -122,15 +121,25 @@ export default function InputSection() {
             batches.push(ids.slice(i, i + batchSize))
         }
 
-        let assets: Asset[] = []
+        const allAssets: Asset[] = []
+
         for (const [index, batch] of batches.entries()) {
             toast.info(`Processando lote ${index + 1}/${batches.length}`)
             const batchAssets = await fetchAssetDetails(batch)
-            assets = [...assets, ...batchAssets]
+            allAssets.push(...batchAssets)
         }
 
+        // Remove duplicados por ID
+        const seen = new Set()
+        const uniqueAssets = allAssets.filter(asset => {
+            if (seen.has(asset.id)) return false
+            seen.add(asset.id)
+            return true
+        })
+
+
         // Agrupa por tipo
-        const grouped = assets.reduce((acc, asset) => {
+        const grouped = uniqueAssets.reduce((acc, asset) => {
             const existingCategory = acc.find(cat => cat.typeId === asset.typeId)
 
             if (existingCategory) {
@@ -159,8 +168,9 @@ export default function InputSection() {
         setIsLoading(false)
 
         toast.success('Análise concluída!', {
-            description: `${assets.length} assets organizados em ${grouped.length} categorias`
+            description: `${uniqueAssets.length} assets organizados em ${grouped.length} categorias`
         })
+
     }
 
     const copyAllIds = () => {
@@ -196,12 +206,12 @@ export default function InputSection() {
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Cole os IDs aqui (separados por vírgulas ou espaços)"
                     className="flex-1 min-h-[100px]"
-                    onPaste={(e) => {
-                        setInput(e.clipboardData.getData('text'))
+                    onPaste={() => {
                         toast.info('IDs colados!', {
                             description: 'Clique em "Analisar Assets" para processar'
                         })
                     }}
+
                 />
                 <Button
                     onClick={parseAssets}

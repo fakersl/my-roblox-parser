@@ -1,52 +1,51 @@
 import { NextResponse } from 'next/server'
 
-export async function POST(request: Request) {
-    try {
-        const { ids } = await request.json()
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const keyword = searchParams.get('keyword') || ''
+    const limit = searchParams.get('limit') || '10'
+    const cursor = searchParams.get('cursor') || ''
 
-        // Primeiro tentamos a API de thumbnails que não tem CORS
-        const thumbnailRes = await fetch(`https://thumbnails.roblox.com/v1/assets?assetIds=${ids.join(',')}&size=420x420&format=Png`)
-        const thumbnailData = await thumbnailRes.json()
-
-        // Para cada ID, buscamos informações adicionais
-        const assets = await Promise.all(
-            ids.map(async (id: string, index: number) => {
-                const imageUrl = thumbnailData.data[index]?.imageUrl || ''
-
-                try {
-                    // Usamos a API de marketplace como fallback
-                    const infoRes = await fetch(`https://api.roblox.com/marketplace/productinfo?assetId=${id}`)
-                    if (infoRes.ok) {
-                        const infoData = await infoRes.json()
-                        return {
-                            id,
-                            name: infoData.Name || `Asset ${id}`,
-                            type: infoData.AssetTypeId || 0,
-                            imageUrl
-                        }
-                    }
-                } catch (error) {
-                    console.error(`Error fetching info for ${id}:`, error)
-                }
-
-                return {
-                    id,
-                    name: `Asset ${id}`,
-                    type: 0,
-                    imageUrl
-                }
-            })
-        )
-
-        return NextResponse.json({ success: true, data: assets })
-    } catch (error) {
-        console.error('Error in Roblox API route:', error)
-        return NextResponse.json(
-            {
-                success: false,
-                error: 'Failed to fetch asset data'
-            },
-            { status: 500 }
-        )
+    if (!keyword.trim()) {
+      return NextResponse.json({ success: false, error: 'Keyword is required' }, { status: 400 })
     }
+
+    const params = new URLSearchParams({
+      Keyword: keyword,
+      Limit: limit,
+    })
+    if (cursor) params.append('Cursor', cursor)
+
+    const apiUrl = `https://catalog.roblox.com/v1/search/items?${params.toString()}`
+
+    const response = await fetch(apiUrl)
+    if (!response.ok) throw new Error('Roblox v1 API error')
+
+    const data = await response.json()
+
+    const itemsWithThumbnails = await Promise.all(
+      data.data.map(async (item: any) => {
+        const thumbRes = await fetch(
+          `https://thumbnails.roblox.com/v1/assets?assetIds=${item.id}&size=420x420&format=Png&isCircular=false`
+        )
+        const thumbData = await thumbRes.json()
+
+        return {
+          ...item,
+          imageUrl: thumbData.data?.[0]?.imageUrl || '',
+        }
+      })
+    )
+
+    return NextResponse.json({
+      success: true,
+      data: itemsWithThumbnails,
+      nextPageCursor: data.nextPageCursor || null,
+      previousPageCursor: data.previousPageCursor || null,
+    })
+  } catch (error) {
+    console.error('Search v1 error:', error)
+    return NextResponse.json({ success: false, error: 'Failed to fetch assets from Roblox v1' }, { status: 500 })
+  }
 }
