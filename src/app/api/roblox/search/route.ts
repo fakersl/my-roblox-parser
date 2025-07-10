@@ -14,6 +14,14 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Primeiro obtemos o token X-CSRF-TOKEN
+    const csrfResponse = await fetch('https://catalog.roblox.com/v1/search/items?category=All&limit=1')
+    const csrfToken = csrfResponse.headers.get('x-csrf-token')
+
+    if (!csrfToken) {
+      throw new Error('Failed to get CSRF token')
+    }
+
     let url = `https://catalog.roblox.com/v1/search/items?keyword=${encodeURIComponent(params.keyword)}&category=${params.category}&limit=${params.limit}`
 
     if (params.subcategory) url += `&subcategory=${params.subcategory}`
@@ -21,7 +29,11 @@ export async function GET(request: Request) {
     if (params.maxPrice) url += `&maxPrice=${params.maxPrice}`
     if (params.cursor) url += `&cursor=${params.cursor}`
 
-    const response = await fetch(url)
+    const response = await fetch(url, {
+      headers: {
+        'X-CSRF-TOKEN': csrfToken
+      }
+    })
 
     if (!response.ok) {
       throw new Error(`API returned ${response.status}`)
@@ -30,6 +42,7 @@ export async function GET(request: Request) {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
+    console.error('Error searching Roblox catalog:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

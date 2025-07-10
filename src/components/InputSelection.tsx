@@ -86,45 +86,9 @@ export default function InputSelection() {
         setCategories(newCategories)
     }
 
-    const fetchAssetDetails = async (id: string): Promise<RobloxAsset> => {
-        try {
-            const response = await fetch(`/api/roblox/catalog?assetId=${id}`)
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch asset ${id}`)
-            }
-
-            const data = await response.json()
-            const typeInfo = ASSET_TYPE_MAPPING[data.assetType?.id || data.assetTypeId] || {
-                name: 'Desconhecido',
-                category: 'Other'
-            }
-
-            return {
-                id,
-                name: data.name || `Item ${id}`,
-                type: typeInfo.name,
-                typeId: data.assetType?.id || data.assetTypeId,
-                category: typeInfo.category,
-                imageUrl: `https://www.roblox.com/asset-thumbnail/image?assetId=${id}&width=420&height=420&format=png`,
-                creator: data.creator?.name || data.creatorName,
-                price: data.price || 0,
-                isLimited: data.isLimited || false
-            }
-        } catch (error) {
-            console.error(`Error fetching asset ${id}:`, error)
-            return {
-                id,
-                name: `Item ${id}`,
-                type: 'Erro ao carregar',
-                typeId: 0,
-                category: 'Error',
-                imageUrl: '',
-                creator: '',
-                price: 0,
-                isLimited: false
-            }
-        }
+    const fetchAssetDetails = async (id: string) => {
+        const response = await fetch(`/api/roblox?assetId=${id}`)
+        return await response.json()
     }
 
     const parseAssets = async () => {
@@ -157,16 +121,25 @@ export default function InputSelection() {
         }
 
         // Processa em lotes para melhor performance
-        const batchSize = 10
+        const batchSize = 5 //Dimunuido pra tentar evitar limit rate
+        const delayBetweenBatches = 1000 //1s entre os lotes
         const allAssets: RobloxAsset[] = []
 
         for (let i = 0; i < ids.length; i += batchSize) {
             const batch = ids.slice(i, i + batchSize)
             toast.info(`Processando itens ${i + 1}-${Math.min(i + batchSize, ids.length)} de ${ids.length}`)
 
-            const batchResults = await Promise.all(batch.map(id => fetchAssetDetails(id)))
-            allAssets.push(...batchResults.filter(asset => asset.typeId !== 0)) // Filtra erros
+            try {
+                const batchResults = await Promise.all(batch.map(id => fetchAssetDetails(id)))
+                allAssets.push(...batchResults.filter(asset => asset.typeId !== 0)) // Filtra erros
+            } catch (error) {
+                console.error(`Error processing batch ${i}-${i + batchSize}:`, error)
+                toast.error(`Erro no lote ${i + 1}-${Math.min(i + batchSize, ids.length)}`, {
+                    description: 'Alguns itens podem estar incompletos'
+                })
+            }
         }
+
 
         // Agrupa por tipo
         const grouped = allAssets.reduce((acc, asset) => {
