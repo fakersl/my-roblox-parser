@@ -1,6 +1,8 @@
 // app/api/roblox/route.ts
 import { NextResponse } from 'next/server'
 
+const assetCache = new Map<string, any>();
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const assetId = searchParams.get('assetId')
@@ -12,11 +14,19 @@ export async function GET(request: Request) {
         )
     }
 
+    /* Verificando se os dados puxados já estão no cache */
+    if (assetCache.has(assetId)) {
+        return NextResponse.json(assetCache.get(assetId));
+    }
+
     try {
         // Endpoint público que não requer CSRF
         const response = await fetch(
             `https://economy.roblox.com/v2/assets/${assetId}/details`
         )
+        console.log('Limite:', response.headers.get('x-ratelimit-limit'));
+        console.log('Restantes:', response.headers.get('x-ratelimit-remaining'));
+        console.log('Reset(s):', response.headers.get('x-ratelimit-reset'));
 
         if (!response.ok) {
             throw new Error(`API returned ${response.status}`)
