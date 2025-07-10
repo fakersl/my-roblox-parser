@@ -5,7 +5,7 @@ import { Redis } from '@upstash/redis'
 // Configuração do Redis com fallback para erro explícito
 const getRedisClient = () => {
     if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) {
-        throw new Error('Variáveis de ambiente do Redis não configuradas')
+        throw new Error('Redis environment variables not configured')
     }
     return new Redis({
         url: process.env.KV_REST_API_URL,
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     const cacheKey = `roblox:asset:${assetId}`
 
     try {
-        // 1. Tentar obter do cache
+        // 1. Try to get from cache first
         const cachedData = await redis.get(cacheKey)
         if (cachedData) {
             return NextResponse.json({
@@ -40,10 +40,10 @@ export async function GET(request: Request) {
             })
         }
 
-        // 2. Buscar da API Roblox
+        // 2.  Buscar da API Roblox
         const apiStart = Date.now()
         const response = await fetch(`https://economy.roblox.com/v2/assets/${assetId}/details`, {
-            next: { revalidate: 3600 } // Cache de 1 hora no edge
+            next: { revalidate: 3600 } /* Cache de 1 hora no edge */
         })
 
         const rateLimit = {
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
             if (response.status === 429) {
                 return NextResponse.json(
                     {
-                        error: 'Rate limit excedido',
+                        error: 'Rate limit exceeded',
                         ...rateLimit,
                         suggestion: 'Tente novamente mais tarde ou use cache existente'
                     },
@@ -95,7 +95,7 @@ export async function GET(request: Request) {
             cachedAt: new Date().toISOString()
         }
 
-        // 4. Armazenar no Redis
+        // 4. Store in Redis
         await redis.setex(cacheKey, CACHE_TTL, result)
 
         return NextResponse.json({
@@ -105,34 +105,34 @@ export async function GET(request: Request) {
         })
 
     } catch (error) {
-        console.error(`Erro ao processar asset ${assetId}:`, error)
+        console.error(`Error processing asset ${assetId}:`, error)
 
-        // Tentar retornar dados incompletos do cache em caso de erro
+        // Try to return stale cache data if available
         try {
             const staleData = await redis.get(cacheKey)
             if (staleData) {
                 return NextResponse.json({
                     ...staleData,
                     source: 'stale-cache',
-                    error: error instanceof Error ? error.message : 'Erro na API, retornando dados cacheados'
+                    error: error instanceof Error ? error.message : 'API error, returning cached data'
                 }, { status: 200 })
             }
         } catch (cacheError) {
-            console.error('Erro ao acessar cache:', cacheError)
+            console.error('Cache access error:', cacheError)
         }
 
         return NextResponse.json(
             {
-                error: error instanceof Error ? error.message : 'Erro desconhecido',
+                error: error instanceof Error ? error.message : 'Unknown error',
                 assetId,
-                suggestion: 'Verifique o ID ou tente novamente mais tarde'
+                suggestion: 'Check the ID or try again later'
             },
             { status: 500 }
         )
     }
 }
 
-// Rota para gerenciamento avançado do cache
+// Cache management endpoint
 export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url)
     const assetId = searchParams.get('assetId')
@@ -140,38 +140,38 @@ export async function DELETE(request: Request) {
 
     try {
         if (clearAll) {
-            // Limpar todos os assets do cache
+            // Clear all cached assets
             const keys = await redis.keys('roblox:asset:*')
             if (keys.length > 0) {
                 await redis.del(...keys)
             }
             return NextResponse.json({
                 success: true,
-                message: `Cache limpo (${keys.length} itens removidos)`
+                message: `Cache cleared (${keys.length} items removed)`
             })
         }
 
         if (!assetId) {
             return NextResponse.json(
-                { error: 'assetId é necessário ou use clearAll=true' },
+                { error: 'assetId is required or use clearAll=true' },
                 { status: 400 }
             )
         }
 
-        // Limpar asset específico
+        // Clear specific asset
         const deleted = await redis.del(`roblox:asset:${assetId}`)
         return NextResponse.json({
             success: deleted > 0,
             message: deleted > 0
-                ? `Cache para ${assetId} removido`
-                : `Asset ${assetId} não encontrado no cache`
+                ? `Cache for ${assetId} cleared`
+                : `Asset ${assetId} not found in cache`
         })
 
     } catch (error) {
-        console.error('Erro ao limpar cache:', error)
+        console.error('Cache clearance error:', error)
         return NextResponse.json(
             {
-                error: 'Falha ao limpar cache',
+                error: 'Failed to clear cache',
                 details: error instanceof Error ? error.message : null
             },
             { status: 500 }
@@ -179,10 +179,10 @@ export async function DELETE(request: Request) {
     }
 }
 
-// Mapeamento completo de categorias
+// Complete category mapping
 function mapToYourCategory(assetType: string): string {
     const categoryMap: Record<string, string> = {
-        // Acessórios
+        // Accessories
         'Hat': 'HatAccessory',
         'HairAccessory': 'HairAccessory',
         'FaceAccessory': 'FaceAccessory',
@@ -194,8 +194,8 @@ function mapToYourCategory(assetType: string): string {
         'EarAccessory': 'EarAccessory',
         'EyeAccessory': 'EyeAccessory',
 
-        // Roupas
-        'TShirt': 'GraphicTShirt', // Changed from duplicate 'TShirt' to 'GraphicTShirt'
+        // Clothing
+        'TShirt': 'GraphicTShirt',
         'Shirt': 'Shirt',
         'Pants': 'Pants',
         'Jacket': 'Jacket',
@@ -214,7 +214,7 @@ function mapToYourCategory(assetType: string): string {
         'LeftLeg': 'LeftLeg',
         'RightLeg': 'RightLeg',
 
-        // Conteúdo
+        // Content
         'Image': 'Image',
         'Audio': 'Audio',
         'Mesh': 'Mesh',
@@ -229,7 +229,7 @@ function mapToYourCategory(assetType: string): string {
         'Place': 'Place',
         'MeshPart': 'MeshPart',
 
-        // Animações
+        // Animations
         'Animation': 'Animation',
         'EmoteAnimation': 'EmoteAnimation',
         'ClimbAnimation': 'ClimbAnimation',
@@ -246,14 +246,14 @@ function mapToYourCategory(assetType: string): string {
     return categoryMap[assetType] || assetType
 }
 
-// Rota adicional para pré-carregar múltiplos assets
+// Batch pre-load endpoint
 export async function POST(request: Request) {
     try {
         const { assetIds } = await request.json()
 
         if (!Array.isArray(assetIds)) {
             return NextResponse.json(
-                { error: 'assetIds deve ser um array de IDs' },
+                { error: 'assetIds must be an array of IDs' },
                 { status: 400 }
             )
         }
